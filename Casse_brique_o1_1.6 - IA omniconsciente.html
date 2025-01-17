@@ -27,8 +27,9 @@
 		var maxLevel = 10;
 		var lives = 5;
 
-		// Variable pour le mode test
+		// Variables pour le mode test et l'IA
 		var en_test = false; // Mettre à true pour afficher le bouton "Test"
+		var IA_contre_IA = false; // Mettre à true pour activer l'IA
 
 		// Couleur du niveau
 		var levelColor = getRandomColor();
@@ -54,7 +55,7 @@
 		function initLevels() {
 			levels = [
 				[], // Niveau 0 (non utilisé)
-				// Niveau 1
+				// Niveaux 1 à 10...
 				[
 					"000100000",
 					"000100000",
@@ -62,7 +63,6 @@
 					"000100000",
 					"000100000"
 				],
-				// Niveau 2
 				[
 					"011111110",
 					"000000010",
@@ -70,7 +70,6 @@
 					"010000000",
 					"011111110"
 				],
-				// Niveau 3
 				[
 					"011111110",
 					"000000010",
@@ -78,7 +77,6 @@
 					"000000010",
 					"011111110"
 				],
-				// Niveau 4
 				[
 					"010000010",
 					"010000010",
@@ -86,7 +84,6 @@
 					"000000010",
 					"000000010"
 				],
-				// Niveau 5
 				[
 					"011111110",
 					"010000000",
@@ -94,7 +91,6 @@
 					"000000010",
 					"011111110"
 				],
-				// Niveau 6
 				[
 					"011111110",
 					"010000000",
@@ -102,7 +98,6 @@
 					"010000010",
 					"011111110"
 				],
-				// Niveau 7
 				[
 					"011111110",
 					"000000010",
@@ -110,7 +105,6 @@
 					"000000010",
 					"000000010"
 				],
-				// Niveau 8
 				[
 					"011111110",
 					"010000010",
@@ -118,7 +112,6 @@
 					"010000010",
 					"011111110"
 				],
-				// Niveau 9
 				[
 					"011111110",
 					"010000010",
@@ -126,7 +119,6 @@
 					"000000010",
 					"011111110"
 				],
-				// Niveau 10 (Représenté par le chiffre 0)
 				[
 					"010111110",
 					"010100010",
@@ -164,7 +156,9 @@
 		initBricks();
 
 		// Écouteur d'événement pour le mouvement de la souris
-		document.addEventListener("mousemove", mouseMoveHandler, false);
+		if (!IA_contre_IA) {
+			document.addEventListener("mousemove", mouseMoveHandler, false);
+		}
 
 		function mouseMoveHandler(e) {
 			var relativeX = e.clientX - canvas.offsetLeft;
@@ -203,7 +197,6 @@
 								} else {
 									alert("Félicitations, vous avez terminé le jeu complet !");
 									document.location.reload();
-									clearInterval(interval);
 								}
 							}
 						}
@@ -322,7 +315,6 @@
 						if (!lives) {
 							alert("GAME OVER");
 							document.location.reload();
-							clearInterval(interval);
 						} else {
 							x = canvas.width / 2;
 							y = canvas.height - 30;
@@ -336,6 +328,18 @@
 				// Mouvement de la balle
 				x += dx;
 				y += dy;
+
+				// Contrôle de la raquette par l'IA ou le joueur
+				if (IA_contre_IA) {
+					// L'IA contrôle la raquette
+					paddleX = x - paddleWidth / 2;
+					// Empêche la raquette de sortir des limites
+					if (paddleX < 0) {
+						paddleX = 0;
+					} else if (paddleX + paddleWidth > canvas.width) {
+						paddleX = canvas.width - paddleWidth;
+					}
+				}
 			}
 
 			requestAnimationFrame(draw);
