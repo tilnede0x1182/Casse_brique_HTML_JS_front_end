@@ -25,12 +25,17 @@
 				this.isPaused = false;
 				this.enTest = true; // Mettre à true pour afficher le bouton "Test"
 				this.iaActive = false; // Mettre à true pour activer l'IA
+				this.nombre_de_vie_joueur_humain = 20;
+				this.nombre_de_vies_IA = 50;
+				this.calcul_nombre_de_vies();
 				if (this.iaActive)
-					this.maxLives = 50;
+					this.maxLives = this.nombre_de_vies_avec_IA;
 				else
-					this.maxLives = 5;
+					this.maxLives = this.nombre_de_vie_sans_IA;
 				this.lives = this.maxLives; 
 				this.levelColor = this.getRandomColor();
+				this.speedIA = 4;
+				this.speedHumain = 3;
 
 				// Initialisation
 				this.initLevels();
@@ -45,7 +50,13 @@
 
 			initLevels() {
 				this.levels = [
-					[], // Niveau 0 (non utilisé)
+					[
+						"011111110",
+						"010000010",
+						"010000010",
+						"010000010",
+						"011111110"
+					],
 					[
 						"000010000",
 						"000010000",
@@ -144,24 +155,73 @@
 
 			initBricks() {
 				this.bricks = [];
-				const levelPattern = this.levels[this.level];
+				let levelPattern = [];
+
+				if (this.levels[this.level]) {
+					// Utiliser le niveau prédéfini si disponible
+					levelPattern = this.levels[this.level];
+				} else {
+					// Générer le niveau en concaténant les niveaux prédéfinis selon les chiffres du niveau saisi
+					const levelDigits = this.level.toString().split('').map(Number);
+					const numberOfDigits = Math.min(levelDigits.length, 4); // Limiter à 4 chiffres
+
+					levelPattern = [];
+
+					levelDigits.slice(0, 4).forEach(digit => {
+						if (digit >= 0 && digit <= 9 && this.levels[digit]) {
+							const pattern = this.levels[digit];
+							levelPattern = this.concatenateLevelPatterns(levelPattern, pattern);
+						}
+					});
+
+					// Si aucun niveau n'a été construit, ne rien faire
+					if (levelPattern.length === 0) {
+						alert('Niveau non valide.');
+						return;
+					}
+				}
+
 				const brickRowCount = levelPattern.length;
 				const brickColumnCount = levelPattern[0].length;
-				const brickWidth = 40;
-				const brickHeight = 15;
 				const brickPadding = 5;
 				const brickOffsetTop = 50;
 				const brickOffsetLeft = 35;
+				const brickOffsetRight = brickOffsetLeft;
+
+				// Diviser la taille horizontale des briques par le nombre de chiffres (1 à 4), en tronquant à l'inférieur
+				const baseBrickWidth = 40;
+				let brickWidth = baseBrickWidth;
+				if (this.level > 12)
+					if (this.level.toString().length > 1)
+						brickWidth = Math.floor(baseBrickWidth / (this.level.toString().length+1));
+					if (this.level.toString().length==4)
+						brickWidth = Math.floor(baseBrickWidth / (this.level.toString().length+2));
+				const brickHeight = 15;
 
 				for (let r = 0; r < brickRowCount; r++) {
 					this.bricks[r] = [];
 					for (let c = 0; c < brickColumnCount; c++) {
-						const status = parseInt(levelPattern[r][c]);
+						const status = parseInt(levelPattern[r][c], 10);
 						const brickX = c * (brickWidth + brickPadding) + brickOffsetLeft;
 						const brickY = r * (brickHeight + brickPadding) + brickOffsetTop;
 						this.bricks[r][c] = new Brick(this, brickX, brickY, status);
+						this.bricks[r][c].width = brickWidth;
+						this.bricks[r][c].height = brickHeight;
 					}
 				}
+			}
+
+			concatenateLevelPatterns(pattern1, pattern2) {
+				const result = [];
+				const maxRows = Math.max(pattern1.length, pattern2.length);
+
+				for (let i = 0; i < maxRows; i++) {
+					const row1 = pattern1[i] || ''.padEnd(pattern1[0]?.length || 0, '0');
+					const row2 = pattern2[i] || ''.padEnd(pattern2[0]?.length || 0, '0');
+					result[i] = row1 + row2;
+				}
+
+				return result;
 			}
 
 			addEventListeners() {
@@ -192,6 +252,12 @@
 				}
 			}
 
+			calcul_nombre_de_vies() {
+				this.nombre_de_vie_sans_IA = this.level.toString().length * this.nombre_de_vie_joueur_humain;
+				this.nombre_de_vie_avec_IA = this.level.toString().length * this.nombre_de_vies_IA;
+				this.nombre_de_vie_IA_en_fonction_du_niveau = this.nombre_de_vie_avec_IA - this.nombre_de_vie_sans_IA;
+			}
+
 			createUI() {
 				// Bouton Pause
 				this.pauseButton = document.createElement('button');
@@ -209,29 +275,79 @@
 				this.iaButton.addEventListener('click', () => {
 					this.iaActive = !this.iaActive;
 					this.iaButton.innerHTML = this.iaActive ? 'Désactiver IA' : 'Activer IA';
+
+					this.calcul_nombre_de_vies();
+
 					if (this.iaActive) {
 						this.removeMouseControl();
-						this.ball.speed++;
-						this.maxLives = 50;
-						this.lives+=45; 
+						this.ball.speed = this.speedIA;
+						this.maxLives = this.nombre_de_vie_avec_IA;
+						this.lives += this.nombre_de_vie_IA_en_fonction_du_niveau;
 					} else {
 						this.addMouseControl();
-						this.ball.speed--;
-						this.maxLives = 5;
-						this.lives-=45; 
+						this.ball.speed = this.speedHumain;
+						this.maxLives = this.nombre_de_vie_sans_IA;
+						this.lives -= this.nombre_de_vie_IA_en_fonction_du_niveau;
 					}
 				});
 
-				// Bouton Test
+				// Champ Input pour niveau personnalisé
+				this.levelInput = document.createElement('input');
+				this.levelInput.style.width = '5ch'; // Définit une largeur équivalente à 5 caractères
+				this.levelInput.type = 'text';
+				// this.levelInput.placeholder = '1 à 9999';
+				this.levelInput.maxLength = 4; // Limiter l'input à 4 caractères
+				document.body.appendChild(this.levelInput);
+
+				// Bouton Lancer
+				this.launchButton = document.createElement('button');
+				this.launchButton.innerHTML = 'Lancer';
+				document.body.appendChild(this.launchButton);
+
+				const handleInputValidation = () => {
+					const levelNumber = this.levelInput.value.trim();
+					if (levelNumber === '') {
+						// Ne rien faire si l'input est vide
+						return;
+					}
+					if (/^\d+$/.test(levelNumber) && levelNumber.length <= 4) {
+						const level = parseInt(levelNumber, 10);
+						if (level >= 1 && level <= 9999) {
+							this.level = level;
+							this.calcul_nombre_de_vies();
+							if (this.iaActive)
+								this.maxLives = this.nombre_de_vies_IA;
+							else
+								this.maxLives = this.nombre_de_vie_sans_IA;
+							this.levelColor = this.getRandomColor();
+							this.resetLevel();
+						} else {
+							alert('Veuillez entrer un nombre entre 1 et 9999.');
+						}
+					} else {
+						alert('Veuillez entrer un numéro de niveau valide (nombre entier entre 1 et 9999).');
+					}
+				};
+
+				// Ajouter les écouteurs d'événements
+				this.launchButton.addEventListener('click', handleInputValidation);
+				this.levelInput.addEventListener('keypress', (event) => {
+					if (event.key === 'Enter') {
+						handleInputValidation();
+					}
+				});
+				// this.levelInput.addEventListener('blur', handleInputValidation);
+
+				// Bouton Choisir le niveau
 				if (this.enTest) {
-					this.testButton = document.createElement('button');
-					this.testButton.innerHTML = 'Choisir le niveau';
-					document.body.appendChild(this.testButton);
-					this.testButton.addEventListener('click', () => this.createTestButtons());
+					this.BouttonchoixNiveau = document.createElement('button');
+					this.BouttonchoixNiveau.innerHTML = 'Choisir le niveau';
+					document.body.appendChild(this.BouttonchoixNiveau);
+					this.BouttonchoixNiveau.addEventListener('click', () => this.createBouttonchoixNiveau());
 				}
 			}
 
-			createTestButtons() {
+			createBouttonchoixNiveau() {
 				this.plusButton = document.createElement('button');
 				this.plusButton.innerHTML = '+';
 				document.body.appendChild(this.plusButton);
@@ -241,16 +357,20 @@
 				document.body.appendChild(this.minusButton);
 
 				this.plusButton.addEventListener('click', () => {
-					if (this.level < this.maxLevel) {
+					this.calcul_nombre_de_vies();
+					if (this.level < this.maxLevel || this.level > this.maxLevel) {
 						this.level++;
+						this.maxLives = this.nombre_de_vie_sans_IA;
 						this.levelColor = this.getRandomColor();
 						this.resetLevel();
 					}
 				});
 
 				this.minusButton.addEventListener('click', () => {
+					this.calcul_nombre_de_vies();
 					if (this.level > 1) {
 						this.level--;
+						this.maxLives = this.nombre_de_vie_sans_IA;
 						this.levelColor = this.getRandomColor();
 						this.resetLevel();
 					}
@@ -271,14 +391,19 @@
 							brick.status = 0;
 							this.ball.dy = -this.ball.dy;
 							if (this.checkWin()) {
+								if (this.level == this.maxLevel) {
+									alert('Félicitations, vous avez terminé le jeu complet !');
+									document.location.reload();
+								}
+								if (this.level > this.maxLevel) {
+									alert('Félicitations, vous avez terminé le niveau personnalisé ' + this.level + '.');
+									document.location.reload();
+								}
 								if (this.level < this.maxLevel) {
 									alert(`Niveau ${this.level} terminé ! Passage au niveau ${this.level + 1}.`);
 									this.level++;
 									this.levelColor = this.getRandomColor();
 									this.resetLevel();
-								} else {
-									alert('Félicitations, vous avez terminé le jeu complet !');
-									document.location.reload();
 								}
 							}
 						}
@@ -294,7 +419,7 @@
 				this.ctx.font = '16px Arial';
 				this.ctx.fillStyle = this.levelColor;
 				this.ctx.fillText(`Niveau: ${this.level}`, 8, 20);
-				this.ctx.fillText(`Vies: ${this.lives}`, this.width - 65, 20);
+				this.ctx.fillText(`Vies: ${this.lives}`, this.width - 70, 20);
 			}
 
 			gameLoop() {
@@ -357,6 +482,12 @@
 				this.paddle.x = desiredPaddleX;
 				this.paddle.constrain();
 			}
+
+			rescue() {
+				// Déplacer la raquette sous la balle pour la sauver
+				this.paddle.x = this.ball.x - this.paddle.width / 2;
+				this.paddle.constrain();
+			}
 		}
 
 		class Ball {
@@ -365,9 +496,9 @@
 				this.reset();
 				this.radius = 10;
 				if (this.game.iaActive)
-					this.speed = 4;
+					this.speed = this.game.speedIA;
 				else // IA désactivée
-					this.speed = 3;
+					this.speed = this.game.speedHumain;
 			}
 
 			reset() {
@@ -405,13 +536,27 @@
 						this.dx = ajout_vitesse * Math.sin(bounceAngle);
 						this.dy = -ajout_vitesse * Math.cos(bounceAngle);
 					} else {
-						this.game.lives--;
-						if (this.game.lives === 0) {
-							alert('GAME OVER');
-							document.location.reload();
+						if (this.game.iaActive) {
+							// Rescue logic
+							this.game.rescue();
+							// Recalculer la trajectoire comme si la balle avait touché la raquette
+							const relativeIntersectX = this.x - (this.game.paddle.x + this.game.paddle.width / 2);
+							const normalizedRelativeIntersectionX = relativeIntersectX / (this.game.paddle.width / 2);
+							const bounceAngle = normalizedRelativeIntersectionX * (Math.PI / 3);
+							const ajout_vitesse = 5;
+							this.dx = ajout_vitesse * Math.sin(bounceAngle);
+							this.dy = -ajout_vitesse * Math.cos(bounceAngle);
+							// Ajuster la position de la balle juste au-dessus de la raquette
+							this.y = this.game.paddle.y - this.radius - 1;
 						} else {
-							this.reset();
-							this.game.paddle.reset();
+							this.game.lives--;
+							if (this.game.lives === 0) {
+								alert('GAME OVER');
+								document.location.reload();
+							} else {
+								this.reset();
+								this.game.paddle.reset();
+							}
 						}
 					}
 				}
