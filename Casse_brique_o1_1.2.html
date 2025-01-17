@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Jeu Casse-Brique</title>
+</head>
+<body>
+	<canvas id="myCanvas" width="480" height="320"></canvas>
+	<script>
+		// Initialisation du canvas et du contexte
+		var canvas = document.getElementById("myCanvas");
+		var ctx = canvas.getContext("2d");
+
+		// Propriétés de la balle
+		var x = canvas.width / 2;
+		var y = canvas.height - 30;
+		var dx = 2;
+		var dy = -2;
+		var ballRadius = 10;
+
+		// Propriétés de la raquette
+		var paddleHeight = 10;
+		var paddleWidth = 75;
+		var paddleX = (canvas.width - paddleWidth) / 2;
+
+		// Variable de niveau
+		var level = 1;
+		var maxLevel = 10;
+
+		// Propriétés des briques
+		var brickRowCount = 5;
+		var brickColumnCount = 9;
+		var brickWidth = 40;
+		var brickHeight = 15;
+		var brickPadding = 5;
+		var brickOffsetTop = 50;
+		var brickOffsetLeft = 35;
+
+		var bricks = [];
+
+		// Tableau des configurations de briques pour chaque niveau
+		var levels = [];
+
+		// Initialisation des niveaux avec les formes des chiffres 1 à 10
+		function initLevels() {
+			levels = [
+				[], // Niveau 0 (non utilisé)
+				// Niveau 1
+				[
+					"000100000",
+					"000100000",
+					"000100000",
+					"000100000",
+					"000100000"
+				],
+				// Niveau 2
+				[
+					"011111110",
+					"000000010",
+					"011111110",
+					"010000000",
+					"011111110"
+				],
+				// Niveau 3
+				[
+					"011111110",
+					"000000010",
+					"001111100",
+					"000000010",
+					"011111110"
+				],
+				// Niveau 4
+				[
+					"010000010",
+					"010000010",
+					"011111110",
+					"000000010",
+					"000000010"
+				],
+				// Niveau 5
+				[
+					"011111110",
+					"010000000",
+					"011111110",
+					"000000010",
+					"011111110"
+				],
+				// Niveau 6
+				[
+					"011111110",
+					"010000000",
+					"011111110",
+					"010000010",
+					"011111110"
+				],
+				// Niveau 7
+				[
+					"011111110",
+					"000000010",
+					"000000010",
+					"000000010",
+					"000000010"
+				],
+				// Niveau 8
+				[
+					"011111110",
+					"010000010",
+					"011111110",
+					"010000010",
+					"011111110"
+				],
+				// Niveau 9
+				[
+					"011111110",
+					"010000010",
+					"011111110",
+					"000000010",
+					"011111110"
+				],
+				// Niveau 10 (Représenté par le chiffre 0)
+				[
+					"011111110",
+					"010000010",
+					"010000010",
+					"010000010",
+					"011111110"
+				]
+			];
+		}
+
+		// Initialisation des briques pour le niveau actuel
+		function initBricks() {
+			bricks = [];
+			var levelPattern = levels[level];
+			for (var r = 0; r < brickRowCount; r++) {
+				bricks[r] = [];
+				for (var c = 0; c < brickColumnCount; c++) {
+					var status = parseInt(levelPattern[r][c]);
+					bricks[r][c] = { x: 0, y: 0, status: status };
+				}
+			}
+		}
+
+		initLevels();
+		initBricks();
+
+		// Écouteur d'événement pour le mouvement de la souris
+		document.addEventListener("mousemove", mouseMoveHandler, false);
+
+		function mouseMoveHandler(e) {
+			var relativeX = e.clientX - canvas.offsetLeft;
+			if (relativeX > 0 && relativeX < canvas.width) {
+				paddleX = relativeX - paddleWidth / 2;
+			}
+		}
+
+		// Détection des collisions
+		function collisionDetection() {
+			for (var r = 0; r < brickRowCount; r++) {
+				for (var c = 0; c < brickColumnCount; c++) {
+					var b = bricks[r][c];
+					if (b.status == 1) {
+						if (
+							x > b.x &&
+							x < b.x + brickWidth &&
+							y > b.y &&
+							y < b.y + brickHeight
+						) {
+							dy = -dy;
+							b.status = 0;
+							// Vérifie si toutes les briques sont cassées
+							if (checkWin()) {
+								if (level < maxLevel) {
+									level++;
+									alert("Niveau " + (level - 1) + " terminé ! Passage au niveau " + level + ".");
+									initBricks();
+									x = canvas.width / 2;
+									y = canvas.height - 30;
+									dx = 2;
+									dy = -2;
+									paddleX = (canvas.width - paddleWidth) / 2;
+								} else {
+									alert("Félicitations, vous avez terminé le jeu complet !");
+									document.location.reload();
+									clearInterval(interval);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		function checkWin() {
+			for (var r = 0; r < brickRowCount; r++) {
+				for (var c = 0; c < brickColumnCount; c++) {
+					if (bricks[r][c].status == 1) {
+						return false;
+					}
+				}
+			}
+			return true;
+		}
+
+		// Dessine la balle
+		function drawBall() {
+			ctx.beginPath();
+			ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+			ctx.fillStyle = "#0095DD";
+			ctx.fill();
+			ctx.closePath();
+		}
+
+		// Dessine la raquette
+		function drawPaddle() {
+			ctx.beginPath();
+			ctx.rect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
+			ctx.fillStyle = "#0095DD";
+			ctx.fill();
+			ctx.closePath();
+		}
+
+		// Dessine les briques
+		function drawBricks() {
+			for (var r = 0; r < brickRowCount; r++) {
+				for (var c = 0; c < brickColumnCount; c++) {
+					if (bricks[r][c].status == 1) {
+						var brickX = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
+						var brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
+						bricks[r][c].x = brickX;
+						bricks[r][c].y = brickY;
+						ctx.beginPath();
+						ctx.rect(brickX, brickY, brickWidth, brickHeight);
+						ctx.fillStyle = "#0095DD";
+						ctx.fill();
+						ctx.closePath();
+					}
+				}
+			}
+		}
+
+		// Affiche le numéro du niveau
+		function drawLevel() {
+			ctx.font = "16px Arial";
+			ctx.fillStyle = "#0095DD";
+			ctx.fillText("Niveau: " + level, 8, 20);
+		}
+
+		// Fonction principale de dessin
+		function draw() {
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			drawBricks();
+			drawBall();
+			drawPaddle();
+			drawLevel();
+			collisionDetection();
+
+			// Détection des murs
+			if (x + dx > canvas.width - ballRadius || x + dx < ballRadius) {
+				dx = -dx;
+			}
+			if (y + dy < ballRadius) {
+				dy = -dy;
+			} else if (y + dy > canvas.height - ballRadius) {
+				if (x > paddleX && x < paddleX + paddleWidth) {
+					dy = -dy;
+				} else {
+					alert("GAME OVER");
+					document.location.reload();
+					clearInterval(interval);
+				}
+			}
+
+			// Mouvement de la balle
+			x += dx;
+			y += dy;
+		}
+
+		// Démarre le jeu
+		var interval = setInterval(draw, 10);
+	</script>
+</body>
+</html>
