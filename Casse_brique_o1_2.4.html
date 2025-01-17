@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Jeu Casse-Brique</title>
+	<style>
+		body { margin: 0; }
+		canvas { display: block; margin: auto; background: #eee; }
+		button { margin: 5px; }
+	</style>
+</head>
+<body>
+	<canvas id="gameCanvas" width="480" height="480"></canvas>
+	<script>
+		class Game {
+			constructor() {
+				this.canvas = document.getElementById('gameCanvas');
+				this.ctx = this.canvas.getContext('2d');
+				this.width = this.canvas.width;
+				this.height = this.canvas.height;
+
+				// Variables de jeu
+				this.level = 1;
+				this.maxLevel = 12;
+				this.maxLives = 50;
+				this.isPaused = false;
+				this.enTest = true; // Mettre à true pour afficher le bouton "Test"
+				this.iaActive = false; // Mettre à true pour activer l'IA
+				if (this.iaActive)
+					this.maxLives = 50;
+				else
+					this.maxLives = 5;
+				this.lives = this.maxLives; 
+				this.levelColor = this.getRandomColor();
+
+				// Initialisation
+				this.initLevels();
+				this.initBricks();
+				this.ball = new Ball(this);
+				this.paddle = new Paddle(this);
+
+				this.addEventListeners();
+				this.createUI();
+				this.gameLoop();
+			}
+
+			initLevels() {
+				this.levels = [
+					[], // Niveau 0 (non utilisé)
+					[
+						"000010000",
+						"000010000",
+						"000010000",
+						"000010000",
+						"000010000"
+					],
+					[
+						"011111110",
+						"000000010",
+						"011111110",
+						"010000000",
+						"011111110"
+					],
+					[
+						"011111110",
+						"000000010",
+						"001111100",
+						"000000010",
+						"011111110"
+					],
+					[
+						"010000010",
+						"010000010",
+						"011111110",
+						"000000010",
+						"000000010"
+					],
+					[
+						"011111110",
+						"010000000",
+						"011111110",
+						"000000010",
+						"011111110"
+					],
+					[
+						"011111110",
+						"010000000",
+						"011111110",
+						"010000010",
+						"011111110"
+					],
+					[
+						"011111110",
+						"000000010",
+						"000000010",
+						"000000010",
+						"000000010"
+					],
+					[
+						"011111110",
+						"010000010",
+						"011111110",
+						"010000010",
+						"011111110"
+					],
+					[
+						"011111110",
+						"010000010",
+						"011111110",
+						"000000010",
+						"011111110"
+					],
+					[
+						"010111110",
+						"010100010",
+						"010100010",
+						"010100010",
+						"010111110"
+					],
+					[
+						"001000100",
+						"001000100",
+						"001000100",
+						"001000100",
+						"001000100"
+					],
+					[
+						"010111110",
+						"010000010",
+						"010111110",
+						"010100000",
+						"010111110"
+					]
+				];
+			}
+
+			getRandomColor() {
+				const letters = '0123456789ABCDEF';
+				let color = '#';
+				for (let i = 0; i < 6; i++) {
+					color += letters[Math.floor(Math.random() * 16)];
+				}
+				return color;
+			}
+
+			initBricks() {
+				this.bricks = [];
+				const levelPattern = this.levels[this.level];
+				const brickRowCount = levelPattern.length;
+				const brickColumnCount = levelPattern[0].length;
+				const brickWidth = 40;
+				const brickHeight = 15;
+				const brickPadding = 5;
+				const brickOffsetTop = 50;
+				const brickOffsetLeft = 35;
+
+				for (let r = 0; r < brickRowCount; r++) {
+					this.bricks[r] = [];
+					for (let c = 0; c < brickColumnCount; c++) {
+						const status = parseInt(levelPattern[r][c]);
+						const brickX = c * (brickWidth + brickPadding) + brickOffsetLeft;
+						const brickY = r * (brickHeight + brickPadding) + brickOffsetTop;
+						this.bricks[r][c] = new Brick(this, brickX, brickY, status);
+					}
+				}
+			}
+
+			addEventListeners() {
+				if (!this.iaActive) {
+					this.addMouseControl();
+				}
+				this.canvas.addEventListener('click', () => {
+					this.isPaused = !this.isPaused;
+				});
+			}
+
+			addMouseControl() {
+				this.mouseMoveHandlerBound = (e) => this.mouseMoveHandler(e);
+				document.addEventListener('mousemove', this.mouseMoveHandlerBound);
+			}
+
+			removeMouseControl() {
+				if (this.mouseMoveHandlerBound) {
+					document.removeEventListener('mousemove', this.mouseMoveHandlerBound);
+					this.mouseMoveHandlerBound = null;
+				}
+			}
+
+			mouseMoveHandler(e) {
+				const relativeX = e.clientX - this.canvas.offsetLeft;
+				if (relativeX > 0 && relativeX < this.width) {
+					this.paddle.x = relativeX - this.paddle.width / 2;
+				}
+			}
+
+			createUI() {
+				// Bouton Pause
+				this.pauseButton = document.createElement('button');
+				this.pauseButton.innerHTML = 'Pause';
+				document.body.appendChild(this.pauseButton);
+				this.pauseButton.addEventListener('click', () => {
+					this.isPaused = !this.isPaused;
+					this.pauseButton.innerHTML = this.isPaused ? 'Reprendre' : 'Pause';
+				});
+
+				// Bouton IA
+				this.iaButton = document.createElement('button');
+				this.iaButton.innerHTML = this.iaActive ? 'Désactiver IA' : 'Activer IA';
+				document.body.appendChild(this.iaButton);
+				this.iaButton.addEventListener('click', () => {
+					this.iaActive = !this.iaActive;
+					this.iaButton.innerHTML = this.iaActive ? 'Désactiver IA' : 'Activer IA';
+					if (this.iaActive) {
+						this.removeMouseControl();
+						this.ball.speed++;
+						this.maxLives = 50;
+						this.lives+=45; 
+					} else {
+						this.addMouseControl();
+						this.ball.speed--;
+						this.maxLives = 5;
+						this.lives-=45; 
+					}
+				});
+
+				// Bouton Test
+				if (this.enTest) {
+					this.testButton = document.createElement('button');
+					this.testButton.innerHTML = 'Choisir le niveau';
+					document.body.appendChild(this.testButton);
+					this.testButton.addEventListener('click', () => this.createTestButtons());
+				}
+			}
+
+			createTestButtons() {
+				this.plusButton = document.createElement('button');
+				this.plusButton.innerHTML = '+';
+				document.body.appendChild(this.plusButton);
+
+				this.minusButton = document.createElement('button');
+				this.minusButton.innerHTML = '-';
+				document.body.appendChild(this.minusButton);
+
+				this.plusButton.addEventListener('click', () => {
+					if (this.level < this.maxLevel) {
+						this.level++;
+						this.levelColor = this.getRandomColor();
+						this.resetLevel();
+					}
+				});
+
+				this.minusButton.addEventListener('click', () => {
+					if (this.level > 1) {
+						this.level--;
+						this.levelColor = this.getRandomColor();
+						this.resetLevel();
+					}
+				});
+			}
+
+			resetLevel() {
+				this.lives = this.maxLives;
+				this.ball.reset();
+				this.paddle.reset();
+				this.initBricks();
+			}
+
+			collisionDetection() {
+				for (const row of this.bricks) {
+					for (const brick of row) {
+						if (brick.status === 1 && this.ball.hitBrick(brick)) {
+							brick.status = 0;
+							this.ball.dy = -this.ball.dy;
+							if (this.checkWin()) {
+								if (this.level < this.maxLevel) {
+									alert(`Niveau ${this.level} terminé ! Passage au niveau ${this.level + 1}.`);
+									this.level++;
+									this.levelColor = this.getRandomColor();
+									this.resetLevel();
+								} else {
+									alert('Félicitations, vous avez terminé le jeu complet !');
+									document.location.reload();
+								}
+							}
+						}
+					}
+				}
+			}
+
+			checkWin() {
+				return this.bricks.flat().every(brick => brick.status === 0);
+			}
+
+			drawInfo() {
+				this.ctx.font = '16px Arial';
+				this.ctx.fillStyle = this.levelColor;
+				this.ctx.fillText(`Niveau: ${this.level}`, 8, 20);
+				this.ctx.fillText(`Vies: ${this.lives}`, this.width - 65, 20);
+			}
+
+			gameLoop() {
+				if (!this.isPaused) {
+					this.ctx.clearRect(0, 0, this.width, this.height);
+					this.drawInfo();
+					this.ball.draw();
+					this.paddle.draw();
+					this.bricks.flat().forEach(brick => brick.draw());
+					this.collisionDetection();
+					this.ball.update();
+					if (this.iaActive) {
+						this.IA_omnisciente();
+					}
+				}
+				requestAnimationFrame(() => this.gameLoop());
+			}
+
+			// IA
+
+			IA_omnisciente() {
+				// Liste des briques actives
+				const activeBricks = this.bricks.flat().filter(brick => brick.status === 1);
+				if (activeBricks.length === 0) return;
+
+				// Sélectionner la brique cible (par exemple, la plus proche)
+				const targetBrick = activeBricks.reduce((closest, brick) => {
+					const distance = Math.hypot(
+						brick.x + brick.width / 2 - this.ball.x,
+						brick.y + brick.height / 2 - this.ball.y
+					);
+					const closestDistance = Math.hypot(
+						closest.x + closest.width / 2 - this.ball.x,
+						closest.y + closest.height / 2 - this.ball.y
+					);
+					return distance < closestDistance ? brick : closest;
+				}, activeBricks[0]);
+
+				// Calculer le temps avant que la balle n'atteigne la raquette
+				const timeToPaddle = (this.paddle.y - this.ball.y) / this.ball.dy;
+				const futureBallX = this.ball.x + this.ball.dx * timeToPaddle;
+
+				// Calculer l'angle nécessaire pour atteindre la brique cible
+				const dx = (targetBrick.x + targetBrick.width / 2) - futureBallX;
+				const dy = (targetBrick.y + targetBrick.height / 2) - this.paddle.y;
+				const desiredAngle = Math.atan2(dy, dx);
+
+				// Limiter l'angle de rebond maximal
+				const maxBounceAngle = Math.PI / 3;
+				const clampedAngle = Math.max(-maxBounceAngle, Math.min(maxBounceAngle, desiredAngle));
+
+				// Calculer la position relative sur la raquette
+				const normalizedRelativeIntersectionX = clampedAngle / maxBounceAngle;
+				const relativeIntersectX = normalizedRelativeIntersectionX * (this.paddle.width / 2);
+
+				// Calculer la position souhaitée de la raquette en tenant compte de sa largeur
+				const desiredPaddleX = futureBallX - relativeIntersectX - this.paddle.width / 2;
+
+				// Déplacer la raquette vers la position calculée
+				this.paddle.x = desiredPaddleX;
+				this.paddle.constrain();
+			}
+		}
+
+		class Ball {
+			constructor(game) {
+				this.game = game;
+				this.reset();
+				this.radius = 10;
+				if (this.game.iaActive)
+					this.speed = 4;
+				else // IA désactivée
+					this.speed = 3;
+			}
+
+			reset() {
+				this.x = this.game.width / 2;
+				this.y = this.game.height - 30;
+				this.dx = 2;
+				this.dy = -2;
+			}
+
+			draw() {
+				const ctx = this.game.ctx;
+				ctx.beginPath();
+				ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+				ctx.fillStyle = this.game.levelColor;
+				ctx.fill();
+				ctx.closePath();
+			}
+
+			update() {
+				this.x += this.dx * this.speed;
+				this.y += this.dy * this.speed;
+
+				// Collision avec les murs
+				if (this.x + this.dx > this.game.width - this.radius || this.x + this.dx < this.radius) {
+					this.dx = -this.dx;
+				}
+				if (this.y + this.dy < this.radius) {
+					this.dy = -this.dy;
+				} else if (this.y + this.dy > this.game.height - this.radius) {
+					if (this.hitPaddle()) {
+						const relativeIntersectX = this.x - (this.game.paddle.x + this.game.paddle.width / 2);
+						const normalizedRelativeIntersectionX = relativeIntersectX / (this.game.paddle.width / 2);
+						const bounceAngle = normalizedRelativeIntersectionX * (Math.PI / 3);
+						const ajout_vitesse = 5;
+						this.dx = ajout_vitesse * Math.sin(bounceAngle);
+						this.dy = -ajout_vitesse * Math.cos(bounceAngle);
+					} else {
+						this.game.lives--;
+						if (this.game.lives === 0) {
+							alert('GAME OVER');
+							document.location.reload();
+						} else {
+							this.reset();
+							this.game.paddle.reset();
+						}
+					}
+				}
+			}
+
+			hitPaddle() {
+				return circleRectCollision(
+					this.x,
+					this.y,
+					this.radius,
+					this.game.paddle.x,
+					this.game.paddle.y,
+					this.game.paddle.width,
+					this.game.paddle.height
+				);
+			}
+
+			hitBrick(brick) {
+				return this.x > brick.x &&
+					   this.x < brick.x + brick.width &&
+					   this.y > brick.y &&
+					   this.y < brick.y + brick.height;
+			}
+		}
+
+		class Paddle {
+			constructor(game) {
+				this.game = game;
+				// this.width = 75;
+				this.width = 150;
+				// this.width = 15000;
+				this.height = 10;
+				this.reset();
+			}
+
+			reset() {
+				this.x = (this.game.width - this.width) / 2;
+				this.y = this.game.height - this.height;
+			}
+
+			draw() {
+				const ctx = this.game.ctx;
+				ctx.beginPath();
+				ctx.rect(this.x, this.y, this.width, this.height);
+				ctx.fillStyle = this.game.levelColor;
+				ctx.fill();
+				ctx.closePath();
+			}
+
+			constrain() {
+				if (this.x < 0) {
+					this.x = 0;
+				} else if (this.x + this.width > this.game.width) {
+					this.x = this.game.width - this.width;
+				}
+			}
+		}
+
+		class Brick {
+			constructor(game, x, y, status) {
+				this.game = game;
+				this.x = x;
+				this.y = y;
+				this.width = 40;
+				this.height = 15;
+				this.status = status;
+			}
+
+			draw() {
+				if (this.status === 1) {
+					const ctx = this.game.ctx;
+					ctx.beginPath();
+					ctx.rect(this.x, this.y, this.width, this.height);
+					ctx.fillStyle = this.game.levelColor;
+					ctx.fill();
+					ctx.closePath();
+				}
+			}
+		}
+
+		// Fonction pour détecter la collision entre un cercle et un rectangle
+		function circleRectCollision(circleX, circleY, radius, rectX, rectY, rectWidth, rectHeight) {
+			const distX = Math.abs(circleX - rectX - rectWidth / 2);
+			const distY = Math.abs(circleY - rectY - rectHeight / 2);
+
+			if (distX > (rectWidth / 2 + radius)) { return false; }
+			if (distY > (rectHeight / 2 + radius)) { return false; }
+
+			if (distX <= (rectWidth / 2)) { return true; }
+			if (distY <= (rectHeight / 2)) { return true; }
+
+			const dx = distX - rectWidth / 2;
+			const dy = distY - rectHeight / 2;
+			return (dx * dx + dy * dy <= (radius * radius));
+		}
+
+		// Démarrage du jeu
+		const game = new Game();
+	</script>
+</body>
+</html>
